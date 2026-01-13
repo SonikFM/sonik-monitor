@@ -856,6 +856,97 @@ class TestEndpointMaterialization(ClickhouseTestMixin, APIBaseTest):
         self.assertIn("direct", response.json()["detail"].lower())
         self.assertIn("materialized", response.json()["detail"].lower())
 
+    def test_materialized_insight_endpoint_with_breakdown_executes_correctly(self):
+        """Test that insight-based endpoints (TrendsQuery) with breakdowns work when materialized.
+
+        This verifies that:
+        1. TrendsQuery is converted to HogQL when materialized
+        2. The saved_query.query contains HogQL, not the original TrendsQuery
+        3. Execution uses saved_query.query (HogQL) instead of version.query (TrendsQuery)
+        """
+        trends_query_with_breakdown = {
+            "kind": "TrendsQuery",
+            "series": [{"kind": "EventsNode", "event": "$pageview", "math": "total"}],
+            "dateRange": {"date_from": "-7d"},
+            "interval": "day",
+            "breakdownFilter": {
+                "breakdown": "$browser",
+                "breakdown_type": "event",
+                "breakdown_limit": 5,
+            },
+        }
+
+        # Create events so the query runner can generate valid HogQL
+        _create_event(team=self.team, event="$pageview", distinct_id="user1")
+        flush_persons_and_events()
+
+        endpoint = create_endpoint_with_version(
+            name="trends_breakdown_materialized",
+            team=self.team,
+            query=trends_query_with_breakdown,
+            created_by=self.user,
+            is_active=True,
+        )
+
+        # Enable materialization
+        response = self.client.patch(
+            f"/api/environments/{self.team.id}/endpoints/{endpoint.name}/",
+            {
+                "is_materialized": True,
+                "sync_frequency": DataWarehouseSyncInterval.FIELD_12HOUR,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.json())
+
+        # Verify the saved_query contains HogQL (not TrendsQuery)
+        version = endpoint.versions.first()
+        version.refresh_from_db()
+        self.assertIsNotNone(version.saved_query)
+        saved_query = version.saved_query
+        assert saved_query is not None
+
+        # The saved_query.query should be HogQL, not TrendsQuery
+        self.assertEqual(saved_query.query["kind"], "HogQLQuery")
+        self.assertIn("query", saved_query.query)
+        # The HogQL should contain the breakdown column
+        hogql_str = saved_query.query["query"].lower()
+        self.assertIn("select", hogql_str)
+        self.assertIn("from", hogql_str)
+
+        # The version.query should still be the original TrendsQuery
+        self.assertEqual(version.query["kind"], "TrendsQuery")
+
+        # Set up the saved_query as completed with a table
+        saved_query.status = DataWarehouseSavedQuery.Status.COMPLETED
+        saved_query.last_run_at = timezone.now()
+        saved_query.table = DataWarehouseTable.objects.create(
+            team=self.team,
+            name="trends_breakdown_materialized",
+            format=DataWarehouseTable.TableFormat.Parquet,
+            url_pattern="s3://test-bucket/trends-breakdown",
+        )
+        saved_query.save()
+
+        # Execute the endpoint and verify it uses the materialized path correctly
+        with mock.patch.object(EndpointViewSet, "_execute_query_and_respond", return_value=Response({})) as mock_exec:
+            response = self.client.post(
+                f"/api/environments/{self.team.id}/endpoints/{endpoint.name}/run",
+                {},
+                format="json",
+            )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # Verify the query was executed
+            mock_exec.assert_called()
+            # The query should be HogQL selecting from the materialized table
+            query_request_data = mock_exec.call_args[0][0]
+            query_payload = query_request_data["query"]
+            self.assertEqual(query_payload["kind"], "HogQLQuery")
+            query_sql = query_payload["query"].lower()
+            # Should select from the materialized table name
+            self.assertIn("trends_breakdown_materialized", query_sql)
+
 
 @pytest.mark.asyncio
 class TestEndpointMaterializationTemporal:
