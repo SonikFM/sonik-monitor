@@ -445,6 +445,7 @@ export enum AgentMode {
     ErrorTracking = 'error_tracking',
     Plan = 'plan',
     Execution = 'execution',
+    Flags = 'flags',
 }
 
 export enum SlashCommandName {

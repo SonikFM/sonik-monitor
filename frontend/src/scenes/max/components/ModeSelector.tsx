@@ -144,6 +144,7 @@ interface GetModeOptionsParams {
     deepResearchEnabled: boolean
     webSearchEnabled: boolean
     errorTrackingModeEnabled: boolean
+    flagsModeEnabled: boolean
 }
 
 function getModeOptions({
@@ -151,6 +152,7 @@ function getModeOptions({
     deepResearchEnabled,
     webSearchEnabled,
     errorTrackingModeEnabled,
+    flagsModeEnabled,
 }: GetModeOptionsParams): LemonSelectSection<ModeValue>[] {
     const specialOptions = [
         {
@@ -182,6 +184,9 @@ function getModeOptions({
         if (mode === AgentMode.ErrorTracking && !errorTrackingModeEnabled) {
             return false
         }
+        if (mode === AgentMode.Flags && !flagsModeEnabled) {
+            return false
+        }
         return true
     })
 
@@ -205,13 +210,14 @@ export function ModeSelector(): JSX.Element | null {
     const planModeEnabled = useFeatureFlag('PHAI_PLAN_MODE')
     const webSearchEnabled = useFeatureFlag('PHAI_WEB_SEARCH')
     const errorTrackingModeEnabled = useFeatureFlag('PHAI_ERROR_TRACKING_MODE')
+    const flagsModeEnabled = useFeatureFlag('PHAI_FLAGS_MODE')
 
     const currentValue: ModeValue =
         agentMode && (deepResearchMode ? 'deep_research' : agentMode === AgentMode.Plan ? 'plan' : agentMode)
 
     const modeOptions = useMemo(
-        () => getModeOptions({ planModeEnabled, deepResearchEnabled, webSearchEnabled, errorTrackingModeEnabled }),
-        [planModeEnabled, deepResearchEnabled, webSearchEnabled, errorTrackingModeEnabled]
+        () => getModeOptions({ planModeEnabled, deepResearchEnabled, webSearchEnabled, errorTrackingModeEnabled, flagsModeEnabled }),
+        [planModeEnabled, deepResearchEnabled, webSearchEnabled, errorTrackingModeEnabled, flagsModeEnabled]
     )
 
     const handleChange = useCallback(

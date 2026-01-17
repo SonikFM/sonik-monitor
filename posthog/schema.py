@@ -41,6 +41,7 @@ class AgentMode(StrEnum):
     ERROR_TRACKING = "error_tracking"
     PLAN = "plan"
     EXECUTION = "execution"
+    FLAGS = "flags"
 
 
 class AggregationAxisFormat(StrEnum):
