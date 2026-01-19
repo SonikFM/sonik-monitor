@@ -11,7 +11,7 @@ import { urls } from 'scenes/urls'
 
 import { sceneLayoutLogic } from '~/layout/scenes/sceneLayoutLogic'
 import { EndpointRequest } from '~/queries/schema/schema-general'
-import { EndpointType } from '~/types'
+import { EndpointType, EndpointVersionType } from '~/types'
 
 import type { endpointLogicType } from './endpointLogicType'
 import { endpointsLogic } from './endpointsLogic'
@@ -31,7 +31,7 @@ export const endpointLogic = kea<endpointLogicType>([
     })),
     actions({
         setEndpointName: (endpointName: string) => ({ endpointName }),
-        setEndpointDescription: (endpointDescription: string) => ({ endpointDescription }),
+        setEndpointDescription: (endpointDescription: string | null) => ({ endpointDescription }),
         setActiveCodeExampleTab: (tab: CodeExampleTab) => ({ tab }),
         setSelectedCodeExampleVersion: (version: number | null) => ({ version }),
         setIsUpdateMode: (isUpdateMode: boolean) => ({ isUpdateMode }),
@@ -41,15 +41,28 @@ export const endpointLogic = kea<endpointLogicType>([
         createEndpoint: (request: EndpointRequest) => ({ request }),
         createEndpointSuccess: (response: any) => ({ response }),
         createEndpointFailure: () => ({}),
-        updateEndpoint: (name: string, request: Partial<EndpointRequest>, showViewButton?: boolean) => ({
+        updateEndpoint: (
+            name: string,
+            request: Partial<EndpointRequest>,
+            options?: { showViewButton?: boolean; version?: number }
+        ) => ({
             name,
             request,
-            showViewButton,
+            options,
         }),
-        updateEndpointSuccess: (response: any, showViewButton?: boolean) => ({ response, showViewButton }),
+        updateEndpointSuccess: (
+            response: any,
+            endpointName: string,
+            options?: { showViewButton?: boolean; version?: number }
+        ) => ({
+            response,
+            endpointName,
+            options,
+        }),
         updateEndpointFailure: () => ({}),
         deleteEndpoint: (name: string) => ({ name }),
         deleteEndpointSuccess: (response: any) => ({ response }),
+        clearMaterializationStatus: true,
         deleteEndpointFailure: () => ({}),
         confirmToggleActive: (endpoint: EndpointType) => ({ endpoint }),
     }),
@@ -82,6 +95,13 @@ export const endpointLogic = kea<endpointLogicType>([
                 setDuplicateEndpoint: (_, { endpoint }) => endpoint,
             },
         ],
+        // Extend the loader reducer to clear on action
+        materializationStatus: [
+            null as EndpointType['materialization'] | null,
+            {
+                clearMaterializationStatus: () => null,
+            },
+        ],
     }),
     loaders(({ actions, values }) => ({
         endpoint: [
@@ -110,14 +130,14 @@ export const endpointLogic = kea<endpointLogicType>([
         materializationStatus: [
             null as EndpointType['materialization'] | null,
             {
-                loadMaterializationStatus: async (name: string) => {
+                loadMaterializationStatus: async ({ name, version }: { name: string; version?: number }) => {
                     if (!name) {
                         return null
                     }
-                    const materializationStatus = await api.endpoint.getMaterializationStatus(name)
+                    const materializationStatus = await api.endpoint.getMaterializationStatus(name, version)
 
-                    // Update the endpoint object with the new materialization status
-                    if (values.endpoint) {
+                    // Update the endpoint object with the new materialization status (only for current version)
+                    if (values.endpoint && version === undefined) {
                         const updatedEndpoint = {
                             ...values.endpoint,
                             materialization: materializationStatus,
@@ -132,10 +152,21 @@ export const endpointLogic = kea<endpointLogicType>([
                 },
             },
         ],
+        versions: [
+            [] as EndpointVersionType[],
+            {
+                loadVersions: async (name: string) => {
+                    if (!name) {
+                        return []
+                    }
+                    return await api.endpoint.listVersions(name)
+                },
+            },
+        ],
     })),
     listeners(({ actions }) => {
-        const reloadMaterializationStatus = debounce((name: string): void => {
-            actions.loadMaterializationStatus(name)
+        const reloadMaterializationStatus = debounce((name: string, version?: number): void => {
+            actions.loadMaterializationStatus({ name, version })
         }, 2000)
         return {
             openCreateFromInsightModal: () => {
@@ -173,28 +204,34 @@ export const endpointLogic = kea<endpointLogicType>([
             createEndpointFailure: () => {
                 lemonToast.error('Failed to create endpoint')
             },
-            updateEndpoint: async ({ name, request, showViewButton }) => {
+            updateEndpoint: async ({ name, request, options }) => {
                 try {
-                    const response = await api.endpoint.update(name, request)
-                    actions.updateEndpointSuccess(response, showViewButton)
-                    actions.loadEndpoints()
+                    const response = await api.endpoint.update(name, request, options?.version)
+                    actions.updateEndpointSuccess(response, name, options)
                 } catch (error) {
                     console.error('Failed to update endpoint:', error)
                     actions.updateEndpointFailure()
                 }
             },
-            updateEndpointSuccess: ({ response, showViewButton }) => {
-                if (showViewButton) {
+            updateEndpointSuccess: ({ endpointName, options }) => {
+                actions.setEndpointDescription(null)
+                actions.loadEndpoints()
+                // Reload versions if we updated a specific version
+                if (options?.version) {
+                    actions.loadVersions(endpointName)
+                }
+                if (options?.showViewButton) {
                     lemonToast.success(<>Endpoint updated</>, {
                         button: {
                             label: 'View',
-                            action: () => router.actions.push(urls.endpoint(response.name)),
+                            action: () => router.actions.push(urls.endpoint(endpointName)),
                         },
                     })
                 } else {
                     lemonToast.success('Endpoint updated')
+                    actions.loadEndpoint(endpointName)
                 }
-                reloadMaterializationStatus(response.name)
+                reloadMaterializationStatus(endpointName, options?.version)
             },
             updateEndpointFailure: () => {
                 lemonToast.error('Failed to update endpoint')
