@@ -4,6 +4,7 @@ export const keyBinds: Record<string, string[]> = {
     // Sequence shortcuts: use 'then' between keys (e.g., type "sql" to open SQL editor)
     sqlEditor: ['s', 'then', 'q', 'then', 'l'],
     openSidePanel: ['g', 'then', 'p'],
+    quickStart: ['g', 'then', 's'],
     recentItems: [...baseModifier, 'y'],
     newTab: [...baseModifier, 't'],
     closeActiveTab: [...baseModifier, 'w'],

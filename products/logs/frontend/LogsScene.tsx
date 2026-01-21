@@ -8,6 +8,7 @@ import { sceneConfigurations } from 'scenes/scenes'
 
 import { SceneContent } from '~/layout/scenes/components/SceneContent'
 import { SceneTitleSection } from '~/layout/scenes/components/SceneTitleSection'
+import { ProductKey } from '~/queries/schema/schema-general'
 
 import { LogsViewer } from 'products/logs/frontend/components/LogsViewer'
 import { LogsFilterBar } from 'products/logs/frontend/components/LogsViewer/Filters/LogsFilterBar'
@@ -25,7 +26,7 @@ export const scene: SceneExport = {
 
 export function LogsScene(): JSX.Element {
     return (
-        <SceneContent>
+        <SceneContent productKey={ProductKey.LOGS}>
             <LogsSetupPrompt>
                 <LogsSceneContent />
             </LogsSetupPrompt>

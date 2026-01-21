@@ -3,6 +3,7 @@ import { Slide, ToastContainer } from 'react-toastify'
 
 import { KeaDevtools } from 'lib/KeaDevTools'
 import { Command } from 'lib/components/Command/Command'
+import { globalSetupLogic, useSetupHighlight } from 'lib/components/ProductSetup'
 import { FEATURE_FLAGS, MOCK_NODE_PROCESS } from 'lib/constants'
 import { useThemedHtml } from 'lib/hooks/useThemedHtml'
 import { ToastCloseButton } from 'lib/lemon-ui/LemonToast/LemonToast'
@@ -30,10 +31,13 @@ window.process = MOCK_NODE_PROCESS
 
 export function App(): JSX.Element | null {
     const { showApp, showingDelayedSpinner, showingDevTools } = useValues(appLogic)
+
     useMountedLogic(sceneLogic({ scenes: appScenes }))
     useMountedLogic(apiStatusLogic)
     useMountedLogic(eventIngestionRestrictionLogic)
     useMountedLogic(maxGlobalLogic)
+    useMountedLogic(globalSetupLogic)
+
     useThemedHtml()
 
     if (showApp) {
@@ -62,6 +66,9 @@ function AppScene(): JSX.Element | null {
 
     const { featureFlags } = useValues(featureFlagLogic)
     const { isDarkModeOn } = useValues(themeLogic)
+
+    // Highlight any relevant element after navigation from the quick start guide
+    useSetupHighlight()
 
     const toastContainer = (
         <ToastContainer
