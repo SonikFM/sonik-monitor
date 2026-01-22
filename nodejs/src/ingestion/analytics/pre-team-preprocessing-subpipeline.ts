@@ -7,6 +7,7 @@ import { EventIngestionRestrictionManager } from '../../utils/event-ingestion-re
 import {
     createApplyEventRestrictionsStep,
     createDropExceptionEventsStep,
+    createEnrichSurveyPersonPropertiesStep,
     createParseHeadersStep,
     createParseKafkaMessageStep,
     createResolveTeamStep,
@@ -54,4 +55,5 @@ export function createPreTeamPreprocessingSubpipeline<TInput extends PreTeamPrep
         .pipe(createDropExceptionEventsStep())
         .pipe(createResolveTeamStep(teamManager))
         .pipe(createValidateHistoricalMigrationStep())
+        .pipe(createEnrichSurveyPersonPropertiesStep())
 }
