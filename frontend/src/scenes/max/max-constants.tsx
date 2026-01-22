@@ -960,10 +960,19 @@ export const MODE_DEFINITIONS: Record<Exclude<AgentMode, AgentMode.Plan | AgentM
         scenes: new Set([Scene.ErrorTracking]),
     },
     [AgentMode.Flags]: {
-        name: 'Feature flags',
-        description: 'Creates and manages feature flags and A/B test experiments.',
+        name: 'Flags',
+        description: 'Creates and manages feature flags and experiments.',
         icon: iconForType('feature_flag'),
-        scenes: new Set([Scene.FeatureFlags, Scene.Experiment, Scene.Experiments]),
+        scenes: new Set([
+            Scene.FeatureFlags,
+            Scene.FeatureFlag,
+            Scene.EarlyAccessFeature,
+            Scene.EarlyAccessFeatures,
+            Scene.Experiment,
+            Scene.Experiments,
+            Scene.ExperimentsSharedMetric,
+            Scene.ExperimentsSharedMetrics,
+        ]),
     },
 }
 
