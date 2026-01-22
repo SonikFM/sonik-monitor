@@ -28,7 +28,7 @@ def get_survey_response(node: ast.Call, args: list[ast.Expr]) -> ast.Expr:
     is_multiple_choice = bool(third_arg.value) if isinstance(third_arg, ast.Constant) else False
 
     # Build the property keys for lookup
-    id_based_key = _build_id_based_key_expr(question_index, question_id)
+    id_based_key = _build_id_based_key(question_index, question_id)
     index_based_key = _build_index_based_key(question_index)
 
     if is_multiple_choice:
@@ -37,12 +37,12 @@ def get_survey_response(node: ast.Call, args: list[ast.Expr]) -> ast.Expr:
     return _build_coalesce_expr(id_based_key, index_based_key)
 
 
-def _build_id_based_key_expr(question_index: int, question_id: str | None) -> ast.Expr:
-    """Build the expression for the ID-based property key."""
+def _build_id_based_key(question_index: int, question_id: str | None) -> str | ast.Expr:
+    """Build the ID-based property key. Returns string when static, ast.Expr when dynamic."""
     if question_id:
-        return ast.Constant(value=f"$survey_response_{question_id}")
+        return f"$survey_response_{question_id}"
 
-    # Extract the ID from the question at the given index in the questions array
+    # Dynamic key: extract ID from the question at the given index in the questions array
     # concat('$survey_response_', JSONExtractString(JSONExtractArrayRaw(properties, '$survey_questions')[index], 'id'))
     return ast.Call(
         name="concat",
@@ -75,47 +75,47 @@ def _build_index_based_key(question_index: int) -> str:
     return f"$survey_response_{question_index}"
 
 
-def _build_coalesce_expr(id_based_key: ast.Expr, index_based_key: str) -> ast.Expr:
+def _build_property_access(key: str | ast.Expr) -> ast.Expr:
+    """Build property access expression. Uses ast.Field for static keys (enables materialization)."""
+    if isinstance(key, str):
+        return ast.Field(chain=["properties", key])
+    # Dynamic key - must use JSONExtractString
+    return ast.Call(
+        name="JSONExtractString",
+        args=[ast.Field(chain=["properties"]), key],
+    )
+
+
+def _build_coalesce_expr(id_based_key: str | ast.Expr, index_based_key: str) -> ast.Expr:
     """Build COALESCE expression for single-choice survey response."""
-    # coalesce(nullif(JSONExtractString(properties, id_key), ''), nullif(JSONExtractString(properties, index_key), ''))
+    # coalesce(nullif(properties.$id_key, ''), nullif(properties.$index_key, ''))
+    # Using ast.Field enables materialized column optimization when available
     return ast.Call(
         name="coalesce",
         args=[
             ast.Call(
                 name="nullif",
-                args=[
-                    ast.Call(
-                        name="JSONExtractString",
-                        args=[
-                            ast.Field(chain=["properties"]),
-                            id_based_key,
-                        ],
-                    ),
-                    ast.Constant(value=""),
-                ],
+                args=[_build_property_access(id_based_key), ast.Constant(value="")],
             ),
             ast.Call(
                 name="nullif",
-                args=[
-                    ast.Call(
-                        name="JSONExtractString",
-                        args=[
-                            ast.Field(chain=["properties"]),
-                            ast.Constant(value=index_based_key),
-                        ],
-                    ),
-                    ast.Constant(value=""),
-                ],
+                args=[_build_property_access(index_based_key), ast.Constant(value="")],
             ),
         ],
     )
 
 
-def _build_multiple_choice_expr(id_based_key: ast.Expr, index_based_key: str) -> ast.Expr:
-    """Build if() expression for multiple-choice survey response."""
-    # if(JSONHas(properties, id_key) and length(JSONExtractArrayRaw(properties, id_key)) > 0,
-    #    JSONExtractArrayRaw(properties, id_key),
-    #    JSONExtractArrayRaw(properties, index_key))
+def _key_as_expr(key: str | ast.Expr) -> ast.Expr:
+    """Convert key to ast.Expr (wrap string in Constant)."""
+    return ast.Constant(value=key) if isinstance(key, str) else key
+
+
+def _build_multiple_choice_expr(id_based_key: str | ast.Expr, index_based_key: str) -> ast.Expr:
+    """Build if() expression for multiple-choice survey response.
+
+    Note: JSONExtractArrayRaw doesn't benefit from materialization like string properties do.
+    """
+    id_key_expr = _key_as_expr(id_based_key)
     return ast.Call(
         name="if",
         args=[
@@ -123,10 +123,7 @@ def _build_multiple_choice_expr(id_based_key: ast.Expr, index_based_key: str) ->
                 exprs=[
                     ast.Call(
                         name="JSONHas",
-                        args=[
-                            ast.Field(chain=["properties"]),
-                            id_based_key,
-                        ],
+                        args=[ast.Field(chain=["properties"]), id_key_expr],
                     ),
                     ast.CompareOperation(
                         op=ast.CompareOperationOp.Gt,
@@ -135,10 +132,7 @@ def _build_multiple_choice_expr(id_based_key: ast.Expr, index_based_key: str) ->
                             args=[
                                 ast.Call(
                                     name="JSONExtractArrayRaw",
-                                    args=[
-                                        ast.Field(chain=["properties"]),
-                                        id_based_key,
-                                    ],
+                                    args=[ast.Field(chain=["properties"]), id_key_expr],
                                 ),
                             ],
                         ),
@@ -148,17 +142,11 @@ def _build_multiple_choice_expr(id_based_key: ast.Expr, index_based_key: str) ->
             ),
             ast.Call(
                 name="JSONExtractArrayRaw",
-                args=[
-                    ast.Field(chain=["properties"]),
-                    id_based_key,
-                ],
+                args=[ast.Field(chain=["properties"]), id_key_expr],
             ),
             ast.Call(
                 name="JSONExtractArrayRaw",
-                args=[
-                    ast.Field(chain=["properties"]),
-                    ast.Constant(value=index_based_key),
-                ],
+                args=[ast.Field(chain=["properties"]), ast.Constant(value=index_based_key)],
             ),
         ],
     )

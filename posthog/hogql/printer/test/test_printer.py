@@ -2558,26 +2558,25 @@ class TestPrinter(BaseTest):
         )
 
     def test_get_survey_response(self):
-        # Test with just question index (0)
+        # Test with just question index (0) - dynamic key
         printed = self._print(
             "select getSurveyResponse(0) from events",
             settings=HogQLGlobalSettings(max_execution_time=10),
         )
-        # Should contain coalesce with nullif for extracting survey response
-        # String literals are parameterized, so check for function structure
+        # Dynamic key (no question_id) uses concat for key construction
         self.assertIn("coalesce", printed)
-        self.assertIn("nullif", printed)
-        self.assertIn("JSONExtractString", printed)
+        self.assertIn("nullIf", printed)
+        self.assertIn("concat", printed)
 
-        # Test with question index and specific ID
+        # Test with question index and specific ID - static key uses ast.Field
         printed = self._print(
             "select getSurveyResponse(1, 'question123') from events",
             settings=HogQLGlobalSettings(max_execution_time=10),
         )
-        # Verify structure is correct (strings are parameterized)
+        # Static key uses ast.Field which resolves to JSONExtractRaw (enables materialization)
         self.assertIn("coalesce", printed)
-        self.assertIn("nullif", printed)
-        self.assertIn("JSONExtractString", printed)
+        self.assertIn("nullIf", printed)
+        self.assertIn("JSONExtractRaw", printed)
 
         # Test with multiple choice question
         printed = self._print(
