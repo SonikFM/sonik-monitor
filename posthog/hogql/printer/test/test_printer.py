@@ -2558,61 +2558,46 @@ class TestPrinter(BaseTest):
         )
 
     def test_get_survey_response(self):
-        # Test with just question index
-        with patch("posthog.hogql.printer.base.get_survey_response_clickhouse_query") as mock_get_survey_response:
-            mock_get_survey_response.return_value = "MOCKED SQL FOR SURVEY RESPONSE"
-
-            printed = self._print(
-                "select getSurveyResponse(0) from events",
-                settings=HogQLGlobalSettings(max_execution_time=10),
-            )
-
-            # Verify the utility function was called with correct parameters
-            mock_get_survey_response.assert_called_once_with(0, None, False)
-
-            # Just test that the mock value was inserted into the query
-            self.assertIn("MOCKED SQL FOR SURVEY RESPONSE", printed)
+        # Test with just question index (0)
+        printed = self._print(
+            "select getSurveyResponse(0) from events",
+            settings=HogQLGlobalSettings(max_execution_time=10),
+        )
+        # Should contain coalesce with nullif for extracting survey response
+        self.assertIn("coalesce", printed)
+        self.assertIn("nullif", printed)
+        self.assertIn("JSONExtractString", printed)
+        self.assertIn("$survey_response", printed)
 
         # Test with question index and specific ID
-        with patch("posthog.hogql.printer.base.get_survey_response_clickhouse_query") as mock_get_survey_response:
-            mock_get_survey_response.return_value = "MOCKED SQL FOR SURVEY RESPONSE WITH ID"
-
-            printed = self._print(
-                "select getSurveyResponse(1, 'question123') from events",
-                settings=HogQLGlobalSettings(max_execution_time=10),
-            )
-
-            # Verify the utility function was called with correct parameters
-            mock_get_survey_response.assert_called_once_with(1, "question123", False)
-
-            # Just test that the mock value was inserted into the query
-            self.assertIn("MOCKED SQL FOR SURVEY RESPONSE WITH ID", printed)
+        printed = self._print(
+            "select getSurveyResponse(1, 'question123') from events",
+            settings=HogQLGlobalSettings(max_execution_time=10),
+        )
+        self.assertIn("$survey_response_question123", printed)
+        self.assertIn("$survey_response_1", printed)
 
         # Test with multiple choice question
-        with patch("posthog.hogql.printer.base.get_survey_response_clickhouse_query") as mock_get_survey_response:
-            mock_get_survey_response.return_value = "MOCKED SQL FOR MULTIPLE CHOICE SURVEY RESPONSE"
-
-            printed = self._print(
-                "select getSurveyResponse(2, 'abc123', true) from events",
-                settings=HogQLGlobalSettings(max_execution_time=10),
-            )
-
-            # Verify the utility function was called with correct parameters
-            mock_get_survey_response.assert_called_once_with(2, "abc123", True)
+        printed = self._print(
+            "select getSurveyResponse(2, 'abc123', true) from events",
+            settings=HogQLGlobalSettings(max_execution_time=10),
+        )
+        # Multiple choice uses if() with JSONHas and JSONExtractArrayRaw
+        self.assertIn("JSONHas", printed)
+        self.assertIn("JSONExtractArrayRaw", printed)
+        self.assertIn("$survey_response_abc123", printed)
 
     def test_unique_survey_submissions_filter(self):
-        with patch(
-            "posthog.hogql.printer.base.filter_survey_sent_events_by_unique_submission"
-        ) as mock_filter_survey_sent_events_by_unique_submission:
-            mock_filter_survey_sent_events_by_unique_submission.return_value = (
-                "MOCKED SQL FOR UNIQUE SURVEY SUBMISSIONS FILTER"
-            )
-            printed = self._print(
-                "select uuid from events where uniqueSurveySubmissionsFilter('survey123')",
-                settings=HogQLGlobalSettings(max_execution_time=10),
-            )
-            mock_filter_survey_sent_events_by_unique_submission.assert_called_once_with("survey123", self.team.pk)
-            self.assertIn("MOCKED SQL FOR UNIQUE SURVEY SUBMISSIONS FILTER", printed)
+        printed = self._print(
+            "select uuid from events where uniqueSurveySubmissionsFilter('survey123')",
+            settings=HogQLGlobalSettings(max_execution_time=10),
+        )
+        # Should contain subquery with argMax for deduplication
+        self.assertIn("argMax", printed)
+        self.assertIn("survey sent", printed)
+        self.assertIn("$survey_id", printed)
+        self.assertIn("survey123", printed)
+        self.assertIn("$survey_submission_id", printed)
 
     def test_override_timezone(self):
         context = HogQLContext(
