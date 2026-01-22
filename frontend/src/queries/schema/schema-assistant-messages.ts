@@ -420,6 +420,7 @@ export enum AgentMode {
     SQL = 'sql',
     SessionReplay = 'session_replay',
     ErrorTracking = 'error_tracking',
+    Survey = 'survey',
 }
 
 export enum SlashCommandName {

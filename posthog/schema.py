@@ -39,6 +39,7 @@ class AgentMode(StrEnum):
     SQL = "sql"
     SESSION_REPLAY = "session_replay"
     ERROR_TRACKING = "error_tracking"
+    SURVEY = "survey"
 
 
 class AggregationAxisFormat(StrEnum):

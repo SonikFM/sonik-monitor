@@ -95,6 +95,13 @@ class ReadErrorTrackingIssue(BaseModel):
     issue_id: str = Field(description="The UUID of the error tracking issue.")
 
 
+class ReadSurvey(BaseModel):
+    """Retrieves survey details including questions, targeting, and response summary."""
+
+    kind: Literal["survey"] = "survey"
+    survey_id: str = Field(description="The UUID of the survey.")
+
+
 ReadDataQuery = (
     ReadDataWarehouseSchema
     | ReadDataWarehouseTableSchema
@@ -103,6 +110,7 @@ ReadDataQuery = (
     | ReadBillingInfo
     | ReadErrorTrackingIssue
     | ReadArtifact
+    | ReadSurvey
 )
 
 
@@ -153,6 +161,7 @@ class ReadDataTool(HogQLDatabaseMixin, MaxTool):
             ReadDashboard,
             ReadErrorTrackingIssue,
             ReadArtifact,
+            ReadSurvey,
         )
         ReadDataKind = Union[tuple(base_kinds + tuple(kinds))]  # type: ignore[valid-type]
 
@@ -206,6 +215,8 @@ class ReadDataTool(HogQLDatabaseMixin, MaxTool):
                 return await self._read_dashboard(schema.dashboard_id, schema.execute)
             case ReadErrorTrackingIssue() as schema:
                 return await self._read_error_tracking_issue(schema.issue_id), None
+            case ReadSurvey() as schema:
+                return await self._read_survey(schema.survey_id), None
 
     async def _read_insight(
         self, artifact_or_insight_id: str, execute: bool
@@ -398,6 +409,15 @@ class ReadDataTool(HogQLDatabaseMixin, MaxTool):
         context = ErrorTrackingIssueContext(
             team=self._team,
             issue_id=issue_id,
+        )
+        return await context.execute_and_format()
+
+    async def _read_survey(self, survey_id: str) -> str:
+        from ee.hogai.context.survey import SurveyContext
+
+        context = SurveyContext(
+            team=self._team,
+            survey_id=survey_id,
         )
         return await context.execute_and_format()
 
