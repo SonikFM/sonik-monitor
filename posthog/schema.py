@@ -39,6 +39,8 @@ class AgentMode(StrEnum):
     SQL = "sql"
     SESSION_REPLAY = "session_replay"
     ERROR_TRACKING = "error_tracking"
+    PLAN = "plan"
+    EXECUTION = "execution"
 
 
 class AggregationAxisFormat(StrEnum):
@@ -350,6 +352,7 @@ class AssistantTool(StrEnum):
     MANAGE_MEMORIES = "manage_memories"
     CREATE_NOTEBOOK = "create_notebook"
     LIST_DATA = "list_data"
+    FINALIZE_PLAN = "finalize_plan"
 
 
 class AssistantToolCall(BaseModel):
@@ -2027,6 +2030,7 @@ class IntegrationKind(StrEnum):
     VERCEL = "vercel"
     AZURE_BLOB = "azure-blob"
     FIREBASE = "firebase"
+    JIRA = "jira"
 
 
 class IntervalType(StrEnum):
