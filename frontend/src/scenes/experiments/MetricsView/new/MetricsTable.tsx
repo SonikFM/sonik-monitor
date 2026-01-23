@@ -34,11 +34,26 @@ export function MetricsTable({
     const { duplicateMetric, updateExperimentMetrics, updateMetricBreakdown, removeMetricBreakdown } =
         useActions(experimentLogic)
 
-    // Calculate shared axisRange across all metrics
+    // Calculate shared axisRange across all metrics (including breakdown results)
     const maxAbsValue = Math.max(
         ...results.flatMap((result: NewExperimentQueryResponse) => {
-            const variantResults = result?.variant_results || []
-            return variantResults.flatMap((variant: ExperimentVariantResult) => {
+            const allVariants: ExperimentVariantResult[] = []
+
+            // Include main variant results
+            if (result?.variant_results) {
+                allVariants.push(...result.variant_results)
+            }
+
+            // Include breakdown variant results
+            if (result?.breakdown_results) {
+                result.breakdown_results.forEach((breakdownResult) => {
+                    if (breakdownResult?.variants) {
+                        allVariants.push(...breakdownResult.variants)
+                    }
+                })
+            }
+
+            return allVariants.flatMap((variant: ExperimentVariantResult) => {
                 const interval = getVariantInterval(variant)
                 return interval ? [Math.abs(interval[0]), Math.abs(interval[1])] : []
             })
