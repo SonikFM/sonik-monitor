@@ -1,6 +1,6 @@
 import { LogicWrapper } from 'kea'
 
-import type { FileSystemIconType } from '~/queries/schema/schema-general'
+import type { FileSystemIconType, ProductKey } from '~/queries/schema/schema-general'
 import { AccessControlResourceType, ActivityScope } from '~/types'
 
 import { SettingSectionId } from './settings/types'
@@ -182,6 +182,8 @@ export interface SceneExport<T = SceneProps> {
     logic?: LogicWrapper
     /** setting section id to open when clicking the settings button */
     settingSectionId?: SettingSectionId
+    /** product key associated with this scene - used for Quick Start setup tracking */
+    productKey?: ProductKey
     /** convert URL parameters from scenes.ts into logic props */
     paramsToProps?: (params: SceneParams) => T
     /** when was the scene last touched, unix timestamp for sortability */

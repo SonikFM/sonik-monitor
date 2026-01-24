@@ -8,6 +8,7 @@ import { SceneContent } from '~/layout/scenes/components/SceneContent'
 import { SceneTitleSection } from '~/layout/scenes/components/SceneTitleSection'
 import { Query } from '~/queries/Query/Query'
 import { QueryFeature } from '~/queries/nodes/DataTable/queryFeatures'
+import { ProductKey } from '~/queries/schema/schema-general'
 import { ActivityTab } from '~/types'
 
 import { eventsSceneLogic } from './eventsSceneLogic'
@@ -47,4 +48,5 @@ export const scene: SceneExport = {
     component: EventsScene,
     logic: eventsSceneLogic,
     settingSectionId: 'environment-autocapture',
+    productKey: ProductKey.PRODUCT_ANALYTICS,
 }

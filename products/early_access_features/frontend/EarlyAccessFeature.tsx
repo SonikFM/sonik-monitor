@@ -69,6 +69,7 @@ export const scene: SceneExport<EarlyAccessFeatureLogicProps> = {
         id: id && id !== 'new' ? id : 'new',
     }),
     settingSectionId: 'environment-feature-flags',
+    productKey: ProductKey.EARLY_ACCESS_FEATURES,
 }
 
 export function EarlyAccessFeature({ id }: EarlyAccessFeatureLogicProps): JSX.Element {

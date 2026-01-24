@@ -22,11 +22,12 @@ export const scene: SceneExport = {
     component: LogsScene,
     logic: logsSceneLogic,
     settingSectionId: 'environment-logs',
+    productKey: ProductKey.LOGS,
 }
 
 export function LogsScene(): JSX.Element {
     return (
-        <SceneContent productKey={ProductKey.LOGS}>
+        <SceneContent>
             <LogsSetupPrompt>
                 <LogsSceneContent />
             </LogsSetupPrompt>

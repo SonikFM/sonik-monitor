@@ -32,6 +32,7 @@ export const scene: SceneExport = {
     component: MarketingAnalyticsScene,
     logic: marketingAnalyticsLogic,
     settingSectionId: 'environment-marketing-analytics',
+    productKey: ProductKey.MARKETING_ANALYTICS,
 }
 
 const QueryTileItem = ({ tile }: { tile: QueryTile }): JSX.Element => {

@@ -11,7 +11,7 @@ import { ProductKey } from '~/queries/schema/schema-general'
 export function WebAnalyticsScene(): JSX.Element {
     return (
         <>
-            <SceneContent productKey={ProductKey.WEB_ANALYTICS}>
+            <SceneContent>
                 <SceneTitleSection
                     name={sceneConfigurations[Scene.WebAnalytics].name}
                     description={sceneConfigurations[Scene.WebAnalytics].description}
@@ -30,4 +30,5 @@ export const scene: SceneExport = {
     component: WebAnalyticsScene,
     logic: webAnalyticsLogic,
     settingSectionId: 'environment-web-analytics',
+    productKey: ProductKey.WEB_ANALYTICS,
 }
