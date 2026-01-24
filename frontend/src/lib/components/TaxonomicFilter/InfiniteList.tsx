@@ -4,12 +4,12 @@ import './InfiniteList.scss'
 import clsx from 'clsx'
 import { BindLogic, useActions, useValues } from 'kea'
 import { CSSProperties, useEffect, useState } from 'react'
-import { AutoSizer } from 'react-virtualized-auto-sizer'
 import { List, useListRef } from 'react-window'
 
 import { IconArchive, IconCheck, IconPlus } from '@posthog/icons'
 import { LemonTag } from '@posthog/lemon-ui'
 
+import { AutoSizer } from 'lib/components/AutoSizer'
 import { ControlledDefinitionPopover } from 'lib/components/DefinitionPopover/DefinitionPopoverContents'
 import { definitionPopoverLogic } from 'lib/components/DefinitionPopover/definitionPopoverLogic'
 import { PropertyKeyInfo } from 'lib/components/PropertyKeyInfo'
