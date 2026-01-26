@@ -167,6 +167,8 @@ export type SettingId =
     | 'activity-log-org-level-settings'
     | 'activity-log-notifications'
     | 'logs'
+    | 'logs-json-parse'
+    | 'logs-retention'
     | 'organization-ip-anonymization-default'
     | 'allow-impersonation'
     | 'approval-policies'
