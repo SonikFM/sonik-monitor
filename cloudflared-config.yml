@@ -1,0 +1,43 @@
+# Cloudflare Tunnel ingress for Echo4 (PostHog + SigNoz)
+#
+# This tunnel is created via Terraform and the token is stored in GitHub Secrets.
+# cloudflared runs as a systemd service on the EC2 host.
+#
+# Setup on host:
+#   cloudflared service install $TUNNEL_TOKEN
+#   systemctl enable cloudflared
+#   systemctl start cloudflared
+
+tunnel: sonik-observability
+# credentials-file not needed when using TUNNEL_TOKEN
+
+ingress:
+  # ============================================
+  # PostHog - Product Analytics
+  # ============================================
+  - hostname: monitor.sonik.fm
+    service: http://localhost:8000
+    originRequest:
+      noTLSVerify: true
+
+  # ============================================
+  # SigNoz - Observability (APM/Traces/Logs)
+  # ============================================
+  - hostname: security.sonik.fm
+    service: http://localhost:3301
+    originRequest:
+      noTLSVerify: true
+
+  # ============================================
+  # OTEL Collector - Telemetry Ingestion
+  # ============================================
+  # HTTP endpoint for traces/metrics/logs
+  - hostname: otel.sonik.fm
+    service: http://localhost:4318
+    originRequest:
+      noTLSVerify: true
+
+  # ============================================
+  # Default - 404 for unmatched
+  # ============================================
+  - service: http_status:404

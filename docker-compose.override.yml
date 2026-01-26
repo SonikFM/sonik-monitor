@@ -1,0 +1,78 @@
+# PostHog Sonik Overrides
+# - Air-gapped images from ghcr.io/sonikfm
+# - Enterprise features enabled
+# - AI via OpenRouter Claude Opus 4.5
+# - GeoIP mounted
+# - Telemetry disabled
+
+version: '3'
+
+services:
+  web:
+    image: ghcr.io/sonikfm/posthog:latest
+    environment:
+      # Core
+      SECRET_KEY: ${SECRET_KEY}
+      SITE_URL: ${SITE_URL:-https://monitor.sonik.fm}
+      
+      # Enterprise
+      POSTHOG_EE_LICENSE_KEY: ${POSTHOG_LICENSE_KEY:-}
+      DISABLE_PAID_FEATURES: 'false'
+      
+      # AI - OpenRouter Claude Opus 4.5
+      OPENAI_API_KEY: ${OPENROUTER_API_KEY}
+      OPENAI_MODEL: anthropic/claude-opus-4
+      OPENAI_BASE_URL: https://openrouter.ai/api/v1
+      
+      # Proxy
+      IS_BEHIND_PROXY: 'true'
+      TRUST_ALL_PROXIES: 'true'
+      DISABLE_SECURE_SSL_REDIRECT: 'false'
+      ALLOWED_HOSTS: 'monitor.sonik.fm,localhost'
+      
+      # Telemetry disabled
+      POSTHOG_DISABLE_TELEMETRY: 'true'
+      DISABLE_TELEMETRY: 'true'
+    volumes:
+      - /opt/geoip:/usr/share/GeoIP:ro
+
+  worker:
+    image: ghcr.io/sonikfm/posthog:latest
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      SITE_URL: ${SITE_URL:-https://monitor.sonik.fm}
+      POSTHOG_EE_LICENSE_KEY: ${POSTHOG_LICENSE_KEY:-}
+      DISABLE_PAID_FEATURES: 'false'
+      OPENAI_API_KEY: ${OPENROUTER_API_KEY}
+      OPENAI_MODEL: anthropic/claude-opus-4
+      OPENAI_BASE_URL: https://openrouter.ai/api/v1
+      POSTHOG_DISABLE_TELEMETRY: 'true'
+      DISABLE_TELEMETRY: 'true'
+
+  plugins:
+    image: ghcr.io/sonikfm/posthog:latest
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      SITE_URL: ${SITE_URL:-https://monitor.sonik.fm}
+      POSTHOG_EE_LICENSE_KEY: ${POSTHOG_LICENSE_KEY:-}
+      DISABLE_PAID_FEATURES: 'false'
+      POSTHOG_DISABLE_TELEMETRY: 'true'
+      DISABLE_TELEMETRY: 'true'
+
+  db:
+    image: ghcr.io/sonikfm/postgres:15-alpine
+
+  redis:
+    image: redis:7-alpine
+
+  clickhouse:
+    image: ghcr.io/sonikfm/clickhouse:24.8.8.17-alpine
+
+  zookeeper:
+    image: ghcr.io/sonikfm/zookeeper:3.7.0
+
+  kafka:
+    image: ghcr.io/sonikfm/kafka:v2.8.2
+
+  object_storage:
+    image: minio/minio:RELEASE.2022-06-25T15-50-16Z

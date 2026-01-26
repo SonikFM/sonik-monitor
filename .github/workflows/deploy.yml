@@ -1,0 +1,155 @@
+name: "Deploy: PostHog (Echo4)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_deploy:
+        description: "Run deploy job (false = preflight only)"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+env:
+  ECHO4_TAILSCALE_IP: 100.126.25.109
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ env.ECHO4_TAILSCALE_IP }}
+
+      - name: Upload configs to host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.ECHO4_TAILSCALE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.hobby.yml,docker-compose.override.yml,.env.sonik,cloudflared-config.yml"
+          target: "~/sonik-monitor"
+
+      - name: Preflight checks
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.ECHO4_TAILSCALE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            echo "=== Preflight: PostHog ==="
+            docker --version
+            docker compose version
+            echo "=== Disk ==="
+            df -h / | tail -1
+            echo "=== Memory ==="
+            free -h | head -2
+            echo "=== Running Containers ==="
+            docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "(posthog|clickhouse|kafka|redis)" || echo "None running"
+            echo "=== GHCR Auth ==="
+            docker pull ghcr.io/sonikfm/posthog:latest --quiet 2>/dev/null && echo "OK" || echo "WARN: May need login"
+            echo "=== Preflight complete ==="
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: preflight
+    if: ${{ github.ref_name == 'main' && github.event.inputs.run_deploy == 'true' }}
+    environment: production
+    concurrency:
+      group: echo4-posthog
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+          ping: ${{ env.ECHO4_TAILSCALE_IP }}
+
+      - name: Upload configs to host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.ECHO4_TAILSCALE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.hobby.yml,docker-compose.override.yml,.env.sonik,cloudflared-config.yml"
+          target: "~/sonik-monitor"
+
+      - name: Deploy PostHog
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.ECHO4_TAILSCALE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            cd ~/sonik-monitor
+
+            # Create .env from secrets
+            cat > .env << 'EOF'
+            SECRET_KEY=${{ secrets.POSTHOG_SECRET_KEY }}
+            SITE_URL=https://monitor.sonik.fm
+            POSTHOG_LICENSE_KEY=${{ secrets.POSTHOG_LICENSE_KEY }}
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            OPENAI_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            OPENAI_MODEL=anthropic/claude-opus-4
+            OPENAI_BASE_URL=https://openrouter.ai/api/v1
+            IS_BEHIND_PROXY=true
+            TRUST_ALL_PROXIES=true
+            DISABLE_SECURE_SSL_REDIRECT=false
+            ALLOWED_HOSTS=monitor.sonik.fm,localhost
+            POSTHOG_DISABLE_TELEMETRY=true
+            DISABLE_TELEMETRY=true
+            DISABLE_PAID_FEATURES=false
+            PRIMARY_DB=clickhouse
+            CLICKHOUSE_HOST=clickhouse
+            CLICKHOUSE_DATABASE=posthog
+            KAFKA_HOSTS=kafka:9092
+            REDIS_URL=redis://redis:6379
+            DATABASE_URL=postgres://posthog:posthog@db:5432/posthog
+            EOF
+
+            # Login to GHCR
+            echo "${{ secrets.GH_PAT }}" | docker login ghcr.io -u sonikfm --password-stdin
+
+            # Pull and deploy
+            docker compose -f docker-compose.hobby.yml -f docker-compose.override.yml pull
+            docker compose -f docker-compose.hobby.yml -f docker-compose.override.yml up -d --remove-orphans
+            docker compose -f docker-compose.hobby.yml -f docker-compose.override.yml ps
+
+      - name: Health Check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ env.ECHO4_TAILSCALE_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            for i in $(seq 1 45); do
+              if curl -fsS --max-time 5 http://localhost:8000/_health >/dev/null 2>&1; then
+                echo "✓ PostHog is healthy"
+                exit 0
+              fi
+              echo "Waiting... ($i/45)"
+              sleep 2
+            done
+            echo "✗ Health check failed"
+            docker compose -f ~/sonik-monitor/docker-compose.hobby.yml -f ~/sonik-monitor/docker-compose.override.yml logs --tail=50
+            exit 1
