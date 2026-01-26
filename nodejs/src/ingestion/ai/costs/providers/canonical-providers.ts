@@ -1,5 +1,5 @@
 // Auto-generated from OpenRouter API - Do not edit manually
-// Generated at: 2026-01-23 20:02:00 UTC
+// Generated at: 2026-01-26 10:05:03 UTC
 
 export type CanonicalProvider =
     | 'default'
@@ -44,10 +44,6 @@ export type CanonicalProvider =
     | 'fireworks-fp16'
     | 'fireworks-fp8'
     | 'friendli'
-    | 'gmicloud-bf16'
-    | 'gmicloud-fp4'
-    | 'gmicloud-fp8'
-    | 'gmicloud-int4'
     | 'google-ai-studio'
     | 'google-vertex'
     | 'google-vertex-europe'
@@ -77,6 +73,9 @@ export type CanonicalProvider =
     | 'moonshotai-int4'
     | 'moonshotai-turbo'
     | 'morph'
+    | 'ncompass'
+    | 'ncompass-bf16'
+    | 'ncompass-fp8'
     | 'nebius'
     | 'nebius-base'
     | 'nebius-fast'
