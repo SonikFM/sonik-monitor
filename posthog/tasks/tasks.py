@@ -95,7 +95,7 @@ def redis_heartbeat() -> None:
 )
 @limit_concurrency(150, limit_name="global")  # Do not go above what CH can handle (max_concurrent_queries)
 @limit_concurrency(
-    50,
+    10,
     key=lambda *args, **kwargs: kwargs.get("team_id") or args[0],
     limit_name="per_team",
 )  # Do not run too many queries at once for the same team
@@ -817,13 +817,6 @@ def count_items_in_playlists() -> None:
     )
 
     enqueue_recordings_that_match_playlist_filters()
-
-
-@shared_task(ignore_result=True)
-def environments_rollback_migration(organization_id: int, environment_mappings: dict[str, int], user_id: int) -> None:
-    from posthog.tasks.environments_rollback import environments_rollback_migration
-
-    environments_rollback_migration(organization_id, environment_mappings, user_id)
 
 
 @shared_task(ignore_result=True, queue=CeleryQueue.LONG_RUNNING.value)
