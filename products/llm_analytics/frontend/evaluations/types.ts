@@ -2,7 +2,10 @@ import { AnyPropertyFilter } from '~/types'
 
 import { LLMProvider } from '../settings/llmProviderKeysLogic'
 
+export type EvaluationType = 'llm_judge' | 'hog'
 export type EvaluationOutputType = 'boolean'
+export type EvaluationStatus = 'active' | 'paused' | 'error'
+export type EvaluationStatusReason = 'trial_limit_reached' | 'model_not_allowed' | 'provider_key_deleted'
 
 export interface ModelConfiguration {
     provider: LLMProvider
@@ -15,15 +18,22 @@ export interface EvaluationOutputConfig {
     allows_na?: boolean
 }
 
-export interface EvaluationConfig {
+export interface LLMJudgeEvaluationConfig {
+    prompt: string
+}
+
+export interface HogEvaluationConfig {
+    source: string
+    bytecode?: unknown[]
+}
+
+export interface BaseEvaluationConfig {
     id: string
     name: string
     description?: string
     enabled: boolean
-    evaluation_type: 'llm_judge'
-    evaluation_config: {
-        prompt: string
-    }
+    status: EvaluationStatus
+    status_reason: EvaluationStatusReason | null
     output_type: EvaluationOutputType
     output_config: EvaluationOutputConfig
     conditions: EvaluationConditionSet[]
@@ -34,6 +44,18 @@ export interface EvaluationConfig {
     updated_at: string
     deleted?: boolean
 }
+
+export interface LLMJudgeEvaluation extends BaseEvaluationConfig {
+    evaluation_type: 'llm_judge'
+    evaluation_config: LLMJudgeEvaluationConfig
+}
+
+export interface HogEvaluation extends BaseEvaluationConfig {
+    evaluation_type: 'hog'
+    evaluation_config: HogEvaluationConfig
+}
+
+export type EvaluationConfig = LLMJudgeEvaluation | HogEvaluation
 
 export interface EvaluationConditionSet {
     id: string
@@ -54,13 +76,22 @@ export interface EvaluationRun {
     status: 'completed' | 'failed' | 'running'
 }
 
+export interface HogTestResult {
+    event_uuid: string
+    trace_id?: string | null
+    input_preview: string
+    output_preview: string
+    result: boolean | null
+    reasoning: string
+    error: string | null
+}
+
 export type EvaluationSummaryFilter = 'all' | 'pass' | 'fail' | 'na'
 
 export interface EvaluationPattern {
     title: string
     description: string
     frequency: string
-    example_reasoning: string
     example_generation_ids: string[]
 }
 
