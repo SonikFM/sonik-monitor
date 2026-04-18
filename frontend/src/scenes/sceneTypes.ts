@@ -10,9 +10,9 @@ export enum Scene {
     Action = 'Action',
     Actions = 'Actions',
     AdvancedActivityLogs = 'AdvancedActivityLogs',
+    AgenticAuthorize = 'AgenticAuthorize',
     Annotations = 'Annotations',
     Approval = 'Approval',
-    Apps = 'Apps',
     AsyncMigrations = 'AsyncMigrations',
     BatchExport = 'BatchExport',
     BatchExportNew = 'BatchExportNew',
@@ -21,6 +21,7 @@ export enum Scene {
     BillingSection = 'BillingSection',
     Canvas = 'Canvas',
     CLIAuthorize = 'CLIAuthorize',
+    CLILive = 'CLILive',
     Cohort = 'Cohort',
     CohortCalculationHistory = 'CohortCalculationHistory',
     Cohorts = 'Cohorts',
@@ -28,11 +29,12 @@ export enum Scene {
     CustomCss = 'CustomCss',
     CustomerAnalytics = 'CustomerAnalytics',
     CustomerAnalyticsConfiguration = 'CustomerAnalyticsConfiguration',
+    CustomerJourneyBuilder = 'CustomerJourneyBuilder',
     Dashboard = 'Dashboard',
     Dashboards = 'Dashboards',
     DataManagement = 'DataManagement',
     DataPipelinesNew = 'DataPipelinesNew',
-    DataWarehouse = 'DataWarehouse',
+    DataOps = 'DataOps',
     DataWarehouseRedirect = 'DataWarehouseRedirect',
     DataWarehouseSource = 'DataWarehouseSource',
     DataWarehouseSourceNew = 'DataWarehouseSourceNew',
@@ -46,7 +48,6 @@ export enum Scene {
     ErrorNetwork = '4xx',
     ErrorProjectUnavailable = 'ProjectUnavailable',
     ErrorTracking = 'ErrorTracking',
-    ErrorTrackingConfiguration = 'ErrorTrackingConfiguration',
     ErrorTrackingIssue = 'ErrorTrackingIssue',
     ErrorTrackingIssueFingerprints = 'ErrorTrackingIssueFingerprints',
     EventDefinition = 'EventDefinition',
@@ -55,6 +56,8 @@ export enum Scene {
     Experiment = 'Experiment',
     Experiments = 'Experiments',
     Exports = 'Exports',
+    Subscriptions = 'Subscriptions',
+    Subscription = 'Subscription',
     ExperimentsSharedMetric = 'ExperimentsSharedMetric',
     ExperimentsSharedMetrics = 'ExperimentsSharedMetrics',
     ExploreEvents = 'ExploreEvents',
@@ -67,11 +70,12 @@ export enum Scene {
     GroupsNew = 'GroupsNew',
     Heatmaps = 'Heatmaps',
     Heatmap = 'Heatmap',
+    Inbox = 'Inbox',
     HeatmapNew = 'HeatmapNew',
     HeatmapRecording = 'HeatmapRecording',
     HogFunction = 'HogFunction',
     Insight = 'Insight',
-    InsightOptions = 'InsightOptions',
+    InsightQuickStart = 'InsightQuickStart',
     IntegrationsRedirect = 'IntegrationsRedirect',
     IngestionWarnings = 'IngestionWarnings',
     InviteSignup = 'InviteSignup',
@@ -87,6 +91,7 @@ export enum Scene {
     MaterializedColumns = 'MaterializedColumns',
     Max = 'Max',
     Models = 'Models',
+    NodeDetail = 'NodeDetail',
     MoveToPostHogCloud = 'MoveToPostHogCloud',
     NewTab = 'NewTab',
     Notebook = 'Notebook',
@@ -101,6 +106,7 @@ export enum Scene {
     TwoFactorReset = 'TwoFactorReset',
     Person = 'Person',
     Persons = 'Persons',
+    AccountSocialConnected = 'AccountSocialConnected',
     Pipeline = 'Pipeline',
     PipelineStatus = 'PipelineStatus',
     PipelineNode = 'PipelineNode',
@@ -113,17 +119,20 @@ export enum Scene {
     PropertyDefinition = 'PropertyDefinition',
     PropertyDefinitions = 'PropertyDefinitions',
     PropertyDefinitionEdit = 'PropertyDefinitionEdit',
+    QueryPerformance = 'QueryPerformance',
     Replay = 'Replay',
     ReplayFilePlayback = 'ReplayFilePlayback',
     ReplayPlaylist = 'ReplayPlaylist',
     ReplaySettings = 'ReplaySettings',
     ReplaySingle = 'ReplaySingle',
     ReplayKiosk = 'ReplayKiosk',
+    ResourceTransfer = 'ResourceTransfer',
     RevenueAnalytics = 'RevenueAnalytics',
     SqlVariableEdit = 'SqlVariableEdit',
     SQLEditor = 'SQLEditor',
     SavedInsights = 'SavedInsights',
     Health = 'Health',
+    HealthCategoryDetail = 'HealthCategoryDetail',
     SdkDoctor = 'SdkDoctor',
     SessionAttributionExplorer = 'SessionAttributionExplorer',
     SessionGroupSummariesTable = 'SessionGroupSummariesTable',
@@ -137,15 +146,18 @@ export enum Scene {
     Sources = 'Sources',
     StartupProgram = 'StartupProgram',
     Survey = 'Survey',
-    SurveyTemplates = 'SurveyTemplates',
     SurveyWizard = 'SurveyWizard',
+    SurveyFormBuilder = 'SurveyFormBuilder',
     Surveys = 'Surveys',
     SystemStatus = 'SystemStatus',
     ToolbarLaunch = 'ToolbarLaunch',
+    Tracing = 'Tracing',
+    Metrics = 'Metrics',
     Transformations = 'Transformations',
     Unsubscribe = 'Unsubscribe',
     UserInterview = 'UserInterview',
     UserInterviews = 'UserInterviews',
+    VercelConnect = 'VercelConnect',
     VercelLinkError = 'VercelLinkError',
     VerifyEmail = 'VerifyEmail',
     WebAnalytics = 'WebAnalytics',
@@ -154,6 +166,7 @@ export enum Scene {
     WebAnalyticsWebVitals = 'WebAnalyticsWebVitals',
     WebAnalyticsHealth = 'WebAnalyticsHealth',
     WebAnalyticsLive = 'WebAnalyticsLive',
+    WebScripts = 'WebScripts',
     Endpoints = 'Endpoints',
     Endpoint = 'Endpoint',
     Workflow = 'Workflow',
@@ -179,6 +192,8 @@ export enum Scene {
     TaskDetail = 'TaskDetail',
     TaskTracker = 'TaskTracker',
     OrganizationDeactivated = 'OrganizationDeactivated',
+    OrganizationPendingDeletion = 'OrganizationPendingDeletion',
+    CustomerJourneyTemplates = 'CustomerJourneyTemplates',
 }
 
 export type SceneComponent<T> = (props: T) => JSX.Element | null
@@ -215,6 +230,8 @@ export interface SceneTab {
     customTitle?: string
     iconType: FileSystemIconType | 'loading' | 'blank'
     pinned?: boolean
+    /** Show a small badge indicator on the tab icon */
+    badge?: boolean
 
     sceneId?: string
     sceneKey?: string
@@ -246,13 +263,12 @@ export interface SceneConfig {
      * If `app-raw`, navigation is shown, but the scene has no padding.
      * If `app-container`, navigation is shown, and the scene is centered with a max width.
      * If `plain`, there's no navigation present, and the scene has no padding.
+     *
      * @default 'app'
      */
     layout?: 'app' | 'app-raw' | 'app-container' | 'app-raw-no-header' | 'plain' | 'app-full-scene-height'
     /** Hides project notice (ProjectNotice.tsx). */
     hideProjectNotice?: boolean
-    /** Hides billing notice (BillingAlertsV2.tsx). */
-    hideBillingNotice?: boolean
     /** Personal account management (used e.g. by breadcrumbs) */
     personal?: boolean
     /** Instance management (used e.g. by breadcrumbs) */
@@ -263,12 +279,6 @@ export interface SceneConfig {
     projectBased?: boolean
     /** Set the scope of the activity (affects activity and discussion panel) */
     activityScope?: ActivityScope | string
-    /** Default docs path - what the docs side panel will open by default when this scene is active  */
-    defaultDocsPath?: string | (() => string) | (() => Promise<string>)
-    /** Team slug for changelog - appended as ?team= to the changelog URL in the side panel */
-    changelogTeamSlug?: string
-    /** Category for changelog - appended as ?category= to the changelog URL in the side panel */
-    changelogCategory?: string
     /** Component import, used only in manifests */
     import?: () => Promise<any>
     /** Custom icon for the tabs */
@@ -320,7 +330,6 @@ export const sceneToAccessControlResourceType: Partial<Record<Scene, AccessContr
     // Surveys
     [Scene.Survey]: AccessControlResourceType.Survey,
     [Scene.Surveys]: AccessControlResourceType.Survey,
-    [Scene.SurveyTemplates]: AccessControlResourceType.Survey,
 
     // Product Tours
     [Scene.ProductTour]: AccessControlResourceType.ProductTour,
@@ -329,6 +338,10 @@ export const sceneToAccessControlResourceType: Partial<Record<Scene, AccessContr
     // Experiments
     [Scene.Experiment]: AccessControlResourceType.Experiment,
     [Scene.Experiments]: AccessControlResourceType.Experiment,
+
+    // Customer analytics (only journey scenes — configuration uses project-level admin)
+    [Scene.CustomerJourneyBuilder]: AccessControlResourceType.CustomerAnalytics,
+    [Scene.CustomerJourneyTemplates]: AccessControlResourceType.CustomerAnalytics,
 
     // LLM Analytics
     [Scene.LLMAnalytics]: AccessControlResourceType.LlmAnalytics,
