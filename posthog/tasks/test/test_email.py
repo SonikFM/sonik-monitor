@@ -34,7 +34,9 @@ from posthog.tasks.email import (
     send_member_join,
     send_new_ticket_notification,
     send_password_reset,
+    send_provisioning_welcome,
     send_saved_query_materialization_failure,
+    should_send_notification,
     should_send_pipeline_error_notification,
 )
 from posthog.tasks.test.utils_email_tests import mock_email_messages
@@ -103,6 +105,23 @@ class TestEmail(APIBaseTest, ClickhouseTestMixin):
         assert mocked_email_messages[0].send.call_count == 1
         assert mocked_email_messages[0].html_body
 
+    def test_send_member_join_skips_users_who_disabled_org_notifications(self, MockEmailMessage: MagicMock) -> None:
+        mocked_email_messages = mock_email_messages(MockEmailMessage)
+
+        org, admin_user = create_org_team_and_user("2022-01-02 00:00:00", "admin@posthog.com")
+        admin_user.partial_notification_settings = {"organization_member_join_email_disabled": {str(org.id): True}}
+        admin_user.save()
+
+        new_member = User.objects.create_and_join(
+            organization=org,
+            email="new-user@posthog.com",
+            password=None,
+            level=OrganizationMembership.Level.MEMBER,
+        )
+        send_member_join(new_member.uuid, org.id)
+
+        assert len(mocked_email_messages) == 0
+
     def test_send_password_reset(self, MockEmailMessage: MagicMock) -> None:
         mocked_email_messages = mock_email_messages(MockEmailMessage)
         org, user = create_org_team_and_user("2022-01-02 00:00:00", "admin@posthog.com")
@@ -113,6 +132,32 @@ class TestEmail(APIBaseTest, ClickhouseTestMixin):
         assert len(mocked_email_messages) == 1
         assert mocked_email_messages[0].send.call_count == 1
         assert mocked_email_messages[0].html_body
+
+    def test_send_provisioning_welcome(self, MockEmailMessage: MagicMock) -> None:
+        mocked_email_messages = mock_email_messages(MockEmailMessage)
+        org, user = create_org_team_and_user("2022-01-02 00:00:00", "admin@posthog.com")
+        token = password_reset_token_generator.make_token(self.user)
+
+        send_provisioning_welcome(user.id, token, "Wizard")
+
+        assert len(mocked_email_messages) == 1
+        assert mocked_email_messages[0].send.call_count == 1
+        assert mocked_email_messages[0].html_body
+        assert "Set your password" in mocked_email_messages[0].html_body
+        assert "Wizard" in mocked_email_messages[0].html_body
+
+    def test_send_provisioning_welcome_without_partner(self, MockEmailMessage: MagicMock) -> None:
+        mocked_email_messages = mock_email_messages(MockEmailMessage)
+        org, user = create_org_team_and_user("2022-01-02 00:00:00", "admin@posthog.com")
+        token = password_reset_token_generator.make_token(self.user)
+
+        send_provisioning_welcome(user.id, token)
+
+        assert len(mocked_email_messages) == 1
+        assert mocked_email_messages[0].send.call_count == 1
+        assert mocked_email_messages[0].html_body
+        assert "Set your password" in mocked_email_messages[0].html_body
+        assert "via" not in mocked_email_messages[0].html_body
 
     @patch("posthoganalytics.capture")
     def test_send_email_verification(self, mock_capture: MagicMock, MockEmailMessage: MagicMock) -> None:
@@ -235,7 +280,7 @@ class TestEmail(APIBaseTest, ClickhouseTestMixin):
             data_interval_end=now,
         )
 
-        # Test with threshold 0.0 (default) - should notify on any failure
+        # Default threshold is 1% - failure rate 0.5 exceeds it, so notify
         send_batch_export_run_failure(batch_export_run.id, failure_rate=0.5)
         assert len(mocked_email_messages) == 1
         assert mocked_email_messages[0].send.call_count == 1
@@ -295,9 +340,11 @@ class TestEmail(APIBaseTest, ClickhouseTestMixin):
         assert len(mocked_email_messages) == 0
 
     def test_should_send_pipeline_error_notification(self, MockEmailMessage: MagicMock) -> None:
-        # Test default behavior (threshold 0.0) - should notify on any failure
+        # Default threshold is 1% (0.01) - notify when failure rate exceeds that
         assert should_send_pipeline_error_notification(self.user, failure_rate=0.1) is True
-        assert should_send_pipeline_error_notification(self.user, failure_rate=0.0) is True
+        assert should_send_pipeline_error_notification(self.user, failure_rate=0.02) is True
+        assert should_send_pipeline_error_notification(self.user, failure_rate=0.01) is False
+        assert should_send_pipeline_error_notification(self.user, failure_rate=0.0) is False
 
         # Test with threshold 0.5
         self.user.partial_notification_settings = {
@@ -320,7 +367,7 @@ class TestEmail(APIBaseTest, ClickhouseTestMixin):
     def test_get_members_to_notify_for_pipeline_error(self, MockEmailMessage: MagicMock) -> None:
         user2 = self._create_user("test2@posthog.com")
 
-        # Test with default settings (threshold 0.0) - both users should be notified
+        # Default threshold is 1% - failure rate 0.5 exceeds it, so both users notified
         memberships = get_members_to_notify_for_pipeline_error(cast(Team, self.user.team), failure_rate=0.5)
         assert len(memberships) == 2
         assert {m.user.email for m in memberships} == {self.user.email, user2.email}
@@ -791,7 +838,7 @@ class TestEmail(APIBaseTest, ClickhouseTestMixin):
         mocked_email_messages = mock_email_messages(MockEmailMessage)
 
         # Create users with different error rate thresholds
-        # User with no threshold (default 0.0) - should receive all functions
+        # User with default threshold (1%) - receives functions with failure rate > 1%
         self._create_user("no_threshold@posthog.com")
 
         # User with 10% threshold - should only receive functions with failure_rate > 10%
@@ -1335,3 +1382,34 @@ class TestEmail(APIBaseTest, ClickhouseTestMixin):
 
         # Should be sent to both users
         assert len(mocked_email_messages[1].to) == 2
+
+    def test_should_send_wa_digest_notification_enabled_by_default(self, MockEmailMessage: MagicMock) -> None:
+        assert should_send_notification(self.user, "web_analytics_weekly_digest") is True
+
+    def test_should_send_wa_digest_notification_disabled(self, MockEmailMessage: MagicMock) -> None:
+        self.user.partial_notification_settings = {"web_analytics_weekly_digest": False}
+        self.user.save()
+        assert should_send_notification(self.user, "web_analytics_weekly_digest") is False
+
+    def test_should_send_wa_digest_notification_per_project_enabled(self, MockEmailMessage: MagicMock) -> None:
+        team_id = self.team.pk
+        self.user.partial_notification_settings = {
+            "web_analytics_weekly_digest_project_enabled": {str(team_id): True},
+        }
+        self.user.save()
+        assert should_send_notification(self.user, "web_analytics_weekly_digest", team_id=team_id) is True
+
+    def test_should_send_wa_digest_notification_per_project_disabled(self, MockEmailMessage: MagicMock) -> None:
+        team_id = self.team.pk
+        self.user.partial_notification_settings = {
+            "web_analytics_weekly_digest_project_enabled": {str(team_id): False},
+        }
+        self.user.save()
+        assert should_send_notification(self.user, "web_analytics_weekly_digest", team_id=team_id) is False
+
+    def test_should_send_wa_digest_notification_unknown_team_defaults_false(self, MockEmailMessage: MagicMock) -> None:
+        self.user.partial_notification_settings = {
+            "web_analytics_weekly_digest_project_enabled": {"99999": True},
+        }
+        self.user.save()
+        assert should_send_notification(self.user, "web_analytics_weekly_digest", team_id=self.team.pk) is False

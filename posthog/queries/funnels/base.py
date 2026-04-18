@@ -289,7 +289,7 @@ class ClickhouseFunnelBase(ABC):
             query_type=self.QUERY_TYPE,
             filter=self._filter,
             team_id=self._team.pk,
-            settings={"allow_experimental_analyzer": 0},
+            settings={"enable_analyzer": 0},
         )
 
     def _get_timestamp_outer_select(self) -> str:
@@ -792,7 +792,7 @@ class ClickhouseFunnelBase(ABC):
 
             breakdown = self._filter.breakdown
             if isinstance(breakdown, list):
-                expressions = [translate_hogql(exp, self._filter.hogql_context) for exp in breakdown]
+                expressions = [translate_hogql(str(exp), self._filter.hogql_context) for exp in breakdown]
                 expression = f"array({','.join(expressions)})"
             else:
                 expression = translate_hogql(cast(str, breakdown), self._filter.hogql_context)
