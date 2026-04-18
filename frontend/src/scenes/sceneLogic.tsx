@@ -7,7 +7,7 @@ import posthog from 'posthog-js'
 import { useEffect, useState } from 'react'
 
 import api from 'lib/api'
-import { TeamMembershipLevel } from 'lib/constants'
+import { FEATURE_FLAGS, TeamMembershipLevel } from 'lib/constants'
 import { trackFileSystemLogView } from 'lib/hooks/useFileSystemLogView'
 import { lemonToast } from 'lib/lemon-ui/LemonToast/LemonToast'
 import { Spinner } from 'lib/lemon-ui/Spinner'
@@ -16,6 +16,14 @@ import { getAppContext, getCurrentTeamIdOrNone } from 'lib/utils/getAppContext'
 import { NEW_INTERNAL_TAB } from 'lib/utils/newInternalTab'
 import { addProjectIdIfMissing, removeProjectIdIfPresent } from 'lib/utils/router-utils'
 import { withForwardedSearchParams } from 'lib/utils/sceneLogicUtils'
+import {
+    emptySceneParams,
+    forwardedRedirectQueryParams,
+    preloadedScenes,
+    redirects,
+    routes,
+    sceneConfigurations,
+} from 'scenes/scenes'
 import {
     LoadedScene,
     Params,
@@ -26,25 +34,17 @@ import {
     SceneTab,
     sceneToAccessControlResourceType,
 } from 'scenes/sceneTypes'
-import {
-    emptySceneParams,
-    forwardedRedirectQueryParams,
-    preloadedScenes,
-    redirects,
-    routes,
-    sceneConfigurations,
-} from 'scenes/scenes'
 import { urls } from 'scenes/urls'
 
 import { sidePanelStateLogic } from '~/layout/navigation-3000/sidepanel/sidePanelStateLogic'
 import { FileSystemIconType, ProductKey } from '~/queries/schema/schema-general'
 import { AccessControlLevel } from '~/types'
 
-import { preflightLogic } from './PreflightCheck/preflightLogic'
 import { handleLoginRedirect } from './authentication/loginLogic'
 import { billingLogic } from './billing/billingLogic'
 import { parseCouponCampaign } from './coupons/utils'
 import { organizationLogic } from './organizationLogic'
+import { preflightLogic } from './PreflightCheck/preflightLogic'
 import type { sceneLogicType } from './sceneLogicType'
 import { inviteLogic } from './settings/organization/inviteLogic'
 import { teamLogic } from './teamLogic'
@@ -396,6 +396,10 @@ export const sceneLogic = kea<sceneLogicType>([
             }
         },
         setTabs: (tabs: SceneTab[]) => ({ tabs }),
+        applyTitleAndIcon: (title: string, iconType: FileSystemIconType | 'loading' | 'blank') => ({
+            title,
+            iconType,
+        }),
         loadPinnedTabsFromBackend: true,
         setPinnedStateFromBackend: (pinnedState: PersistedPinnedState) => ({ pinnedState }),
         setHomepage: (tab: SceneTab | null) => ({ tab }),
@@ -412,6 +416,9 @@ export const sceneLogic = kea<sceneLogicType>([
         pinTab: (tabId: string) => ({ tabId }),
         unpinTab: (tabId: string) => ({ tabId }),
         setTabScrollDepth: (tabId: string, scrollTop: number) => ({ tabId, scrollTop }),
+        setFrozenWidths: (widths: Record<string, number> | null) => ({ widths }),
+        clearFrozenWidths: true,
+        freezeTabWidths: true,
     }),
     reducers({
         // We store all state in "tabs". This allows us to have multiple tabs open, each with its own scene and parameters.
@@ -469,7 +476,7 @@ export const sceneLogic = kea<sceneLogicType>([
                     const newState = state.map((t) =>
                         t === tab
                             ? !t.active
-                                ? { ...t, active: true }
+                                ? { ...t, active: true, badge: false }
                                 : t
                             : t.active
                               ? {
@@ -629,7 +636,12 @@ export const sceneLogic = kea<sceneLogicType>([
         lastSetScenePayload: [
             {} as Record<string, any>,
             {
-                setScene: (_, { sceneId, sceneKey, tabId, params }) => ({ sceneId, sceneKey, tabId, params }),
+                setScene: (_, { sceneId, sceneKey, tabId, params }) => ({
+                    sceneId,
+                    sceneKey,
+                    tabId,
+                    params,
+                }),
             },
         ],
         tabScrollDepths: [
@@ -655,6 +667,13 @@ export const sceneLogic = kea<sceneLogicType>([
                         {} as Record<string, number>
                     )
                 },
+            },
+        ],
+        frozenWidths: [
+            null as Record<string, number> | null,
+            {
+                setFrozenWidths: (_, { widths }) => widths,
+                clearFrozenWidths: () => null,
             },
         ],
     }),
@@ -717,8 +736,7 @@ export const sceneLogic = kea<sceneLogicType>([
                     isCurrentTeamUnavailable &&
                     sceneId &&
                     sceneConfigurations[sceneId]?.projectBased &&
-                    !location.pathname.startsWith('/settings') &&
-                    location.pathname !== urls.settings('user-danger-zone')
+                    !location.pathname.startsWith('/settings')
                 ) {
                     return Scene.ErrorProjectUnavailable
                 }
@@ -841,6 +859,38 @@ export const sceneLogic = kea<sceneLogicType>([
         ],
     }),
     listeners(({ values, actions, cache, props, selectors }) => ({
+        applyTitleAndIcon: ({ title, iconType }) => {
+            if (!title || title === '...' || title === 'Loading...') {
+                // When the tab is loading, don't flicker between the loaded title and the new one
+                return
+            }
+            const activeIndex = values.tabs.findIndex((t) => t.active)
+            if (activeIndex !== -1) {
+                actions.setTabs(
+                    values.tabs.map((tab, i) => (i === activeIndex ? { ...tab, title, iconType, badge: false } : tab))
+                )
+            }
+            if (!process?.env?.STORYBOOK) {
+                // Persists the changed tab titles in location.history without a replace/push action.
+                // Outside the action's event loop to avoid race conditions with subscribing.
+                // Somehow it messes up Storybook, so disabled for it.
+                window.setTimeout(() => router.actions.refreshRouterState(), 1)
+            }
+        },
+        freezeTabWidths: () => {
+            const tabRow = document.querySelector('.scene-tab-row')
+            if (!tabRow) {
+                return
+            }
+            const widths: Record<string, number> = {}
+            tabRow.querySelectorAll<HTMLElement>('[data-tab-id]').forEach((el) => {
+                const id = el.getAttribute('data-tab-id')
+                if (id) {
+                    widths[id] = el.getBoundingClientRect().width
+                }
+            })
+            actions.setFrozenWidths(widths)
+        },
         [NEW_INTERNAL_TAB]: (payload) => {
             actions.newTab(payload.path, { source: payload?.source ?? 'internal_link' })
         },
@@ -1117,12 +1167,12 @@ export const sceneLogic = kea<sceneLogicType>([
                     return
                 }
 
-                // Redirect to org/project creation if there's no org/project respectively, unless using invite
                 if (sceneId !== Scene.InviteSignup) {
+                    // Redirect to org/project creation if there's no org/project respectively, unless using invite
                     if (organizationLogic.values.isCurrentOrganizationUnavailable) {
                         if (
                             location.pathname !== urls.organizationCreateFirst() &&
-                            location.pathname !== urls.settings('user-danger-zone')
+                            !location.pathname.startsWith(urls.settings('user'))
                         ) {
                             console.warn('Organization not available, redirecting to organization creation')
                             router.actions.replace(urls.organizationCreateFirst())
@@ -1150,6 +1200,8 @@ export const sceneLogic = kea<sceneLogicType>([
                             }
                         }
                     } else if (
+                        // Or redirect to onboarding in case we detect people have to do onboarding for their first project
+                        user.organization?.teams.length === 1 &&
                         teamLogic.values.currentTeam &&
                         !teamLogic.values.currentTeam.is_demo &&
                         !teamLogic.values.hasOnboardedAnyProduct &&
@@ -1381,6 +1433,14 @@ export const sceneLogic = kea<sceneLogicType>([
                 return
             }
 
+            const isAIFirst = posthog.isFeatureEnabled(FEATURE_FLAGS.AI_FIRST)
+            if (isAIFirst) {
+                router.actions.replace(
+                    withForwardedSearchParams(urls.projectHomepage(), searchParams, forwardedRedirectQueryParams)
+                )
+                return
+            }
+
             const primaryDashboardId = teamLogic.values.currentTeam?.primary_dashboard
             if (primaryDashboardId) {
                 router.actions.replace(
@@ -1476,19 +1536,16 @@ export const sceneLogic = kea<sceneLogicType>([
                             iconType,
                         },
                     ])
+                    if (!process?.env?.STORYBOOK) {
+                        window.setTimeout(() => router.actions.refreshRouterState(), 1)
+                    }
                 } else {
-                    if (!title || title === '...' || title === 'Loading...') {
-                        // When the tab is loading, don't flicker between the loaded title and the new one
+                    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+                        cache.pendingTitleAndIcon = { title, iconType }
                         return
                     }
-                    const newTabs = values.tabs.map((tab, i) => (i === activeIndex ? { ...tab, title, iconType } : tab))
-                    actions.setTabs(newTabs)
-                }
-                if (!process?.env?.STORYBOOK) {
-                    // This persists the changed tab titles in location.history without a replace/push action.
-                    // We'll do it outside the action's event loop to avoid race conditions with subscribing.
-                    // Somehow it messes up Storybook, so disabled for it.
-                    window.setTimeout(() => router.actions.refreshRouterState(), 1)
+                    cache.pendingTitleAndIcon = null
+                    actions.applyTitleAndIcon(title, iconType)
                 }
             },
             tabs: () => {
@@ -1531,12 +1588,27 @@ export const sceneLogic = kea<sceneLogicType>([
         }, 'pinnedTabsBackendPersist')
     }),
 
+    afterMount(({ actions, cache }) => {
+        cache.disposables.add(
+            () => {
+                const onVisibilityChange = (): void => {
+                    if (document.visibilityState === 'visible' && cache.pendingTitleAndIcon) {
+                        const { title, iconType } = cache.pendingTitleAndIcon
+                        cache.pendingTitleAndIcon = null
+                        actions.applyTitleAndIcon(title, iconType)
+                    }
+                }
+                document.addEventListener('visibilitychange', onVisibilityChange)
+                return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+            },
+            'titleAndIconVisibilitySync',
+            { pauseOnPageHidden: false }
+        )
+    }),
+
     afterMount(({ actions, cache, values }) => {
         cache.disposables.add(() => {
-            const onStorage = (event: StorageEvent): void => {
-                if (event.key !== getStorageKey(PINNED_TAB_STATE_KEY)) {
-                    return
-                }
+            const syncPinnedTabsFromStorage = (): void => {
                 const storedPinned = getPersistedPinnedState()
                 const currentTabs = values.tabs
                 const updatedTabs = composeTabsFromStorage(storedPinned, currentTabs)
@@ -1558,10 +1630,21 @@ export const sceneLogic = kea<sceneLogicType>([
                 const hashChanged = (nextActiveTab.hash ?? '') !== (location?.hash ?? '')
 
                 // When the active pinned tab changes remotely, make sure the local window navigates too.
+                // Use replace instead of push to avoid growing the history stack in idle
+                // tabs that receive cross-tab sync events (history state is non-heap memory).
                 if (previousActiveTab?.id !== nextActiveTab.id || pathnameChanged || searchChanged || hashChanged) {
-                    router.actions.push(nextActiveTab.pathname, nextActiveTab.search, nextActiveTab.hash)
+                    router.actions.replace(nextActiveTab.pathname, nextActiveTab.search, nextActiveTab.hash)
                 }
             }
+
+            const onStorage = (event: StorageEvent): void => {
+                if (event.key !== getStorageKey(PINNED_TAB_STATE_KEY)) {
+                    return
+                }
+                syncPinnedTabsFromStorage()
+            }
+
+            syncPinnedTabsFromStorage()
             window.addEventListener('storage', onStorage)
             return () => window.removeEventListener('storage', onStorage)
         }, 'pinnedTabsStorageListener')
